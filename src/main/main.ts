@@ -45,13 +45,14 @@ function registerIpc() {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1280, height: 720, useContentSize: true, minWidth: 1024, minHeight: 640, backgroundColor: '#f1ede4', title: MODE === 'spike' ? 'STEADY D1 spike' : 'STEADY',
+    width: 1280, height: 720, useContentSize: true, minWidth: 1024, minHeight: 640, show: !PREVIEW, backgroundColor: '#f1ede4', title: MODE === 'spike' ? 'STEADY D1 spike' : 'STEADY',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'), // bundles @smartspectra/node-sdk/preload + our bridge
       contextIsolation: true, sandbox: true, nodeIntegration: false,
       backgroundThrottling: !process.env.STEADY_SNAPSHOT,
     },
   });
+  if (PREVIEW) win.showInactive(); // never steal focus from whoever is at the keyboard
   if (bindSmartSpectraIpc && !PREVIEW) bindSmartSpectraIpc(win);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());

@@ -49,7 +49,7 @@ function autopilot(): Bot {
     if (!target) return {};
     aim = [aim[0] + (target.x - aim[0]) * 0.15, aim[1] + (target.y - aim[1]) * 0.15];
     const age = now - target.t;
-    return { aim, fire: age > 900 && ((state === 'pause' && age > 1400) || age > 4200) };
+    return { aim, fire: (state === 'pause' && age > 1600) || age > 7000 };
   };
 }
 
@@ -67,9 +67,11 @@ export async function preview(name: string, x: Screens) {
     case 'settings': return x.settingsScreen();
     case 'replay': return x.replayScreen();
     case 'home': {
-      for (const n of ['synthetic-slow', 'synthetic-talking', 'synthetic-clean']) {
+      for (const [i, n] of ['synthetic-slow', 'synthetic-talking', 'synthetic-clean'].entries()) {
         const { file: f, lines: l } = await fixture(n);
         const { session } = scoreRecording(l, f.name);
+        // the fixtures share a start time; give each its own id and day so the logbook shows three rows
+        session.id = `preview-${i}-${n}`; session.date = new Date(Date.parse(session.date) + i * 86_400_000 + i * 3_600_000 * 5).toISOString();
         await api().saveSession(session.id, JSON.stringify(session));
       }
       return x.home();
