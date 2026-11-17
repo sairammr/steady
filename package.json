@@ -12,6 +12,7 @@
     "spike": "scripts/launch.sh spike",
     "spike:summary": "node --experimental-strip-types --no-warnings src/cli/spike-summary.ts",
     "replay": "node --experimental-strip-types --no-warnings src/cli/replay.ts",
+    "plot": "node --experimental-strip-types --no-warnings scripts/plot-recording.ts",
     "fixtures": "node --experimental-strip-types --no-warnings scripts/gen-fixtures.ts",
     "test": "node --experimental-strip-types --no-warnings --test test/*.test.ts",
     "start:inline": "npm run build && electron ."
