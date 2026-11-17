@@ -8,14 +8,17 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "start": "npm run build && electron .",
-    "spike": "npm run build && STEADY_MODE=spike electron .",
+    "start": "scripts/launch.sh app",
+    "spike": "scripts/launch.sh spike",
     "spike:summary": "node --experimental-strip-types --no-warnings src/cli/spike-summary.ts",
     "replay": "node --experimental-strip-types --no-warnings src/cli/replay.ts",
     "fixtures": "node --experimental-strip-types --no-warnings scripts/gen-fixtures.ts",
-    "test": "node --experimental-strip-types --no-warnings --test test/*.test.ts"
+    "test": "node --experimental-strip-types --no-warnings --test test/*.test.ts",
+    "start:inline": "npm run build && electron ."
   },
-  "engines": { "node": ">=22.6" },
+  "engines": {
+    "node": ">=22.6"
+  },
   "dependencies": {
     "@smartspectra/node-sdk": "~3.5.0"
   },

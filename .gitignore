@@ -10,3 +10,4 @@ recordings/*
 !recordings/README.md
 *.log
 .DS_Store
+logs/
