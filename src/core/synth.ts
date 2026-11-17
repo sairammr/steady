@@ -4,7 +4,7 @@
 // occasional revisions of the previous chunk's tail.
 import { estimateCalibration } from './calibration.ts';
 import { accuracy, swayOffset } from './sway.ts';
-import { DEFAULT_OPTS, detect, modelAt } from './detector.ts';
+import { detect, modelAt } from './detector.ts';
 import type { Line, LiveState, MLine, MarkLine, MetaLine, PaceLine, RoundLine, RoundType, Sample, ShotLine } from './recording.ts';
 
 export function rng(seed: number) {
@@ -132,7 +132,7 @@ export function synthesize(o: SynthOpts): { lines: Line[]; truth: SynthTruth } {
 
   // Shots: placed against ground truth, scored later by the real pipeline.
   const cal0 = { orient: o.orient, A: o.amp, period_ms: 6000 };
-  const det = detect(samples, cal0, [], { ...DEFAULT_OPTS, requireStable: false });
+  const det = detect(samples, cal0);
   const shots: ShotLine[] = [];
   for (const rp of roundPlans) {
     let ta = rp.start + 800;

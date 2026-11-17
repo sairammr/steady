@@ -4,8 +4,10 @@
 
 export type Sample = { t: number; v: number; s: boolean };
 export type Cal = {
-  orient: 1 | -1; A: number; period_ms: number;
-  L_ms: number; L_spread_ms: number; D_ms: number; D_p95_ms: number;
+  orient: 1 | -1; orient_by: string; A: number; period_ms: number;
+  L_ms: number; L_spread_ms: number;
+  D_ms: number; D_p95_ms: number;        // delivery jitter above the fastest sample (lower bound on delay)
+  clock_ms: number; clock_p95_ms: number; // arrival − sample t: maps wall clock → sample clock (t ≈ wall − clock_ms)
 };
 export type RoundType = 'guided' | 'nohud';
 export type LiveState = 'pause' | 'breath' | 'unknown';
@@ -71,15 +73,15 @@ export const TALK_HOLDOFF_MS = 2000;
 
 /**
  * Intervals (sample time) where scoring is suspended: SDK invalid or talking (+2 s hold-off).
- * An event covers arrival span (prev t_arr, t_arr], shifted back by the delivery delay D.
+ * An event covers arrival span (prev t_arr, t_arr], mapped to sample clock by clock_ms (Cal).
  */
-export function unknownIntervals(lines: Line[], D_ms: number): Interval[] {
+export function unknownIntervals(lines: Line[], clock_ms: number): Interval[] {
   const ms = ofKind(lines, 'm');
   const raw: Interval[] = [];
   ms.forEach((m, i) => {
     if (m.valid && !m.talking) return;
-    const start = (i > 0 ? ms[i - 1].t_arr : m.t_arr - 1000) - D_ms;
-    const end = m.t_arr - D_ms + (m.talking ? TALK_HOLDOFF_MS : 0);
+    const start = (i > 0 ? ms[i - 1].t_arr : m.t_arr - 1000) - clock_ms;
+    const end = m.t_arr - clock_ms + (m.talking ? TALK_HOLDOFF_MS : 0);
     raw.push([start, end]);
   });
   raw.sort((a, b) => a[0] - b[0]);

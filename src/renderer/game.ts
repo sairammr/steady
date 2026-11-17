@@ -52,8 +52,8 @@ export class LiveSession {
     const cutoff = Date.now() - 30_000;
     const recent = this.lines.filter((l) => l.k !== 'm' || l.t_arr > cutoff);
     const { samples } = buildTrace(recent);
-    const cal = this.cal ?? { orient: 1 as const, A: 1, period_ms: 6000, D_ms: 600 };
-    if (this.cal) this.det = detect(samples, cal, unknownIntervals(recent, cal.D_ms));
+    const cal = this.cal ?? { orient: 1 as const, A: 1, period_ms: 6000 };
+    if (this.cal) this.det = detect(samples, cal, unknownIntervals(recent, this.cal.clock_ms));
     else this.det = { pts: prepare(samples, cal, [], detectOptsLoose), pauses: [], onsets: [], troughs: [] };
   }
 
@@ -145,7 +145,9 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
     <canvas id="c" width="${W}" height="${H}" style="cursor:none"></canvas>`, { camoff: () => { s.aborted = true; } });
   const canvas = document.getElementById('c') as HTMLCanvasElement;
   const c = canvas.getContext('2d')!;
-  const Ddisp = cal.D_p95_ms + 100;
+  // Sample clock = wall − clock_ms; show the trace where 95% of samples have arrived, + 100 ms margin.
+  const Ddisp = cal.clock_p95_ms + 100;
+  const behind = cal.clock_p95_ms - cal.clock_ms + 100; // display lag behind the newest sample
   const field = H - HUD_H;
   let mouse: [number, number] = [W / 2, field / 2];
   let offset: [number, number] = [0, 0];
@@ -205,11 +207,11 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
       wasNow = isNow;
       // No-HUD hides the waveform too: the curve itself is a timing cue. Sway is the only feedback.
       if (guided) drawCurve(c, { x: 0, y: field, w: W, h: HUD_H }, s.det?.pts ?? [], tDisp - 12_000, tDisp,
-        { pauses: s.det?.pauses, unknown: unknownIntervals(s.lines.slice(-200), cal.D_ms) });
+        { pauses: s.det?.pauses, unknown: unknownIntervals(s.lines.slice(-200), cal.clock_ms) });
       c.font = '16px system-ui'; c.textAlign = 'left'; c.fillStyle = COLORS.ink;
       c.fillText(`${Math.ceil((ROUND_MS - elapsed) / 1000)} s`, 16, 28);
       c.fillStyle = COLORS.dim;
-      c.fillText(`trace shown ${(Ddisp / 1000).toFixed(1)} s behind live`, 16, field - 12);
+      c.fillText(`trace shown ${(behind / 1000).toFixed(1)} s behind live`, 16, field - 12);
       if (pulseBase !== null && s.live.lastPulse !== null) {
         const elevated = s.live.lastPulse > pulseBase * 1.1;
         c.fillStyle = elevated ? COLORS.red : COLORS.green;

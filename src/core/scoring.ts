@@ -1,5 +1,5 @@
 // The single scoring path (PRD §6.6): post-round, over the final trace. Live colours are provisional.
-import { estimateCalibration } from './calibration.ts';
+import { calibrationFor } from './calibration.ts';
 import { classifyAt, detect, modelAt, pauseAt, type Detection, type Pause } from './detector.ts';
 import { pickInsight, type Insight, type ScoredShot } from './insights.ts';
 import { buildTrace, median, ofKind, unknownIntervals, type Cal, type Interval, type Line, type LiveState, type RoundType, type ShotLine } from './recording.ts';
@@ -36,9 +36,9 @@ function roundStats(shots: FinalShot[], pauses: Pause[]): RoundStats {
 export function scoreRecording(lines: Line[], recordingFile: string): { session: Session; detail: Detail } {
   const meta = ofKind(lines, 'meta')[0];
   if (!meta) throw new Error('recording has no meta line');
-  const cal: Cal = meta.cal ?? (({ lags: _l, r: _r, ...c }) => c)(estimateCalibration(lines));
+  const cal: Cal = calibrationFor(lines);
   const { samples } = buildTrace(lines);
-  const unknown = unknownIntervals(lines, cal.D_ms);
+  const unknown = unknownIntervals(lines, cal.clock_ms);
   const det = detect(samples, cal, unknown);
   const rounds = ofKind(lines, 'round').map(({ type, t_start, t_end }) => ({ type, t_start, t_end }));
 
@@ -92,7 +92,7 @@ export function formatReport(session: Session, detail: Detail, label: string): s
   return [
     `STEADY session report — ${label}`,
     s.synthetic ? '*** SYNTHETIC TEST DATA — not a real person ***' : '',
-    `calibration: orient ${c.orient > 0 ? '+' : '-'}  A ${c.A}  period ${c.period_ms} ms  L ${c.L_ms} ± ${c.L_spread_ms} ms  D ${c.D_ms} ms (p95 ${c.D_p95_ms})`,
+    `calibration: orient ${c.orient > 0 ? '+' : '-'}  A ${c.A}  period ${c.period_ms} ms  L ${c.L_ms} ± ${c.L_spread_ms} ms  D ${c.D_ms} ms (p95 ${c.D_p95_ms}, jitter only)  clock ${c.clock_ms} ms`,
     `detector: ${detail.det.pauses.length} pause windows, ${detail.unknown.length} unknown spans`,
     row('Guided', s.guided),
     row('No-HUD', s.nohud),

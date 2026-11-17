@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyAt, detect } from '../src/core/detector.ts';
+import { classifyAt, DEFAULT_OPTS, detect } from '../src/core/detector.ts';
 import { simpleTrace } from './helpers.ts';
 
 const cal = { orient: 1 as const, A: 1, period_ms: 6200 };
@@ -45,7 +45,8 @@ test('talking interval, unstable samples and gaps are unknown', () => {
   const det = detect(samples, cal, [[a - 100, b + 100]]);
   assert.equal(classifyAt((a + b) / 2, det), 'unknown');
   const unstable = samples.map((s) => ({ ...s, s: s.t < 5000 ? false : s.s }));
-  assert.equal(classifyAt(1000, detect(unstable, cal)), 'unknown');
+  assert.equal(classifyAt(1000, detect(unstable, cal)), 'breath', 'stable flag ignored by default (D1: false 67% of the time)');
+  assert.equal(classifyAt(1000, detect(unstable, cal, [], { ...DEFAULT_OPTS, requireStable: true })), 'unknown');
   const gappy = samples.filter((s) => s.t < 10000 || s.t > 11000);
   assert.equal(classifyAt(10500, detect(gappy, cal)), 'unknown');
   assert.equal(classifyAt(samples.at(-1)!.t + 2000, det), 'unknown', 'beyond the trace');

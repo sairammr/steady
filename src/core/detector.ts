@@ -13,8 +13,8 @@ export type DetectOpts = {
 };
 // ponytail: thresholds are first guesses tuned on synthetic data; retune on D1 recordings.
 export const DEFAULT_OPTS: DetectOpts = {
-  smoothMs: 200, slopeMs: 150, k: 0.15, minFlatMs: 300, levelFrac: 0.3,
-  maxPauseMs: 5000, maxGapMs: 500, requireStable: true,
+  smoothMs: 300, slopeMs: 300, k: 0.2, minFlatMs: 300, levelFrac: 0.35,
+  maxPauseMs: 5000, maxGapMs: 500, requireStable: false,
 };
 
 export type BreathModel = { orient: 1 | -1; A: number; period_ms: number };

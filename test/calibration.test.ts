@@ -6,14 +6,17 @@ import { fixture } from './helpers.ts';
 
 const names = ['synthetic-clean', 'synthetic-talking', 'synthetic-slow'];
 
-test('recovers orientation, L (±60 ms) and D on synthetic recordings', () => {
+test('recovers orientation, L (±60 ms), clock map and D on synthetic recordings', () => {
   for (const n of names) {
     const o = FIXTURES[n];
     const c = estimateCalibration(fixture(n));
     assert.equal(c.orient, o.orient, n);
     assert.ok(Math.abs(c.L_ms - (o.userLag + o.filterDelay)) <= 60, `${n}: L ${c.L_ms} vs truth ${o.userLag + o.filterDelay}`);
-    const dTruth = o.cadence / 2 + o.procDelay + o.jitter / 2;
-    assert.ok(Math.abs(c.D_ms - dTruth) <= 60, `${n}: D ${c.D_ms} vs ~${dTruth}`);
+    // clock = arrival − sample t (includes the constant processing delay); D = jitter above the fastest sample
+    const clockTruth = o.cadence / 2 + o.procDelay + o.jitter / 2;
+    assert.ok(Math.abs(c.clock_ms - clockTruth) <= 60, `${n}: clock ${c.clock_ms} vs ~${clockTruth}`);
+    assert.ok(Math.abs(c.D_ms - (o.cadence / 2 + o.jitter / 2)) <= 60, `${n}: D ${c.D_ms}`);
+    assert.match(c.orient_by, /dwell .* \+ paced/, `${n}: dwell and pacer agree`);
     assert.ok(c.D_p95_ms >= c.D_ms);
     assert.ok(Math.abs(c.A - o.amp) / o.amp < 0.1, `${n}: A ${c.A}`);
   }
