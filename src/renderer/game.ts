@@ -9,6 +9,8 @@ import { api, beep, hidpi, liveLayout, pip, show, sleep, type Settings } from '.
 
 export const ROUND_MS = 60_000;
 const TARGET_MS = 8_000;
+const GRACE_MS = 1_500;     // ignore SDK validity dropouts shorter than this
+const HARD_LOSS_MS = 5_000; // pause the round only if no data arrives for this long
 const TARGET_R = 60;
 export const W = 980;
 const H = 620, HUD_H = 120;
@@ -191,7 +193,8 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
   show(liveLayout(guided ? 2 : 3, '<canvas id="c" style="cursor:none"></canvas>', `<div class="card">
       <h3>${guided ? 'Guided round' : 'No-HUD round'}</h3>
       <p>${guided ? 'Fire when the crosshair settles in the green pause.' : 'No help this time: same sway, same scoring. Find the pause on your own.'}</p>
-      <p class="keys">Aim with the mouse. <kbd>any key</kbd> or click fires. Stay silent.</p></div>
+      <p class="keys">Aim with the mouse. <kbd>any key</kbd> or click fires. Stay silent.</p>
+      <p class="small dim">Sit back with your chest in view and aim with your hand, not by leaning in.</p></div>
     ${guided ? `<div class="card tight"><div class="kicker">Hit marks</div>
       <div class="legend-col"><span class="chip dot green">In your pause ×1.0</span><span class="chip dot red">Mid-breath ×0.3</span><span class="chip dot grey">Not scored</span></div><div class="small dim" style="margin-top:6px">Not scored: talking or weak signal.</div></div>`
     : '<div class="card tight small">Hit marks stay neutral this round. Your breath timing for every shot is in the report.</div>'}
@@ -216,12 +219,17 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
     const r = canvas.getBoundingClientRect();
     mouse = [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H];
   });
+  // Signal handling: brief SDK dropouts (leaning in to aim, a frame-rate dip) must not stop play.
+  // Within GRACE_MS of a good signal we carry on as normal; beyond it shots are grey (not scored)
+  // but the clock and targets keep going. Only a hard loss (no data for HARD_LOSS_MS) pauses.
+  let lastGood = Date.now(), rawOk = false;
+  const hardLost = () => !s.live.running || Date.now() - s.live.lastArrival > HARD_LOSS_MS;
   const fire = () => {
     const now = Date.now();
-    if (!target || !s.signalOk()) return;
+    if (!target || hardLost()) return;
     const impact: [number, number] = [Math.round((mouse[0] + offset[0]) * 100) / 100, Math.round((mouse[1] + offset[1]) * 100) / 100];
     const judged = now + cal.L_ms;
-    const live_state = s.det ? classifyAt(Math.min(judged, s.liveT()), s.det) : 'unknown'; // provisional
+    const live_state: LiveState = (rawOk || now - lastGood < GRACE_MS) && s.det ? classifyAt(Math.min(judged, s.liveT()), s.det) : 'unknown'; // provisional
     const shot: ShotLine = {
       k: 'shot', t: now, round: type, t_target: target.t, target: [Math.round(target.x), Math.round(target.y)],
       mouse: [Math.round(mouse[0]), Math.round(mouse[1])], offset: [...offset], impact, t_disp: Math.round(now - Ddisp),
@@ -247,11 +255,15 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
       const now = Date.now();
       const tDisp = now - Ddisp;
       const m = s.det ? modelAt(s.det.pts, tDisp) : null;
-      const ok = s.signalOk() && !!m;
-      if (ok) elapsed += now - last; // invalid signal pauses the round and freezes sway
+      rawOk = s.signalOk() && !!m;
+      if (rawOk) lastGood = now;
+      const lost = hardLost();
+      const weak = !rawOk && now - lastGood > GRACE_MS; // shown as a strip, play continues
+      if (!lost) elapsed += now - last;
       last = now;
-      if (ok) offset = swayOffset(m!.x, m!.trough, m!.A, tDisp);
-      if (!target && ok && now >= nextTarget) target = { x: 120 + Math.random() * (W - 240), y: 90 + Math.random() * (field - 180), t: now };
+      if (m && !lost) offset = swayOffset(m.x, m.trough, m.A, tDisp);
+      else offset = [offset[0] * 0.9, offset[1] * 0.9]; // no model: ease the sway out instead of freezing
+      if (!target && !lost && now >= nextTarget) target = { x: 120 + Math.random() * (W - 240), y: 90 + Math.random() * (field - 180), t: now };
       if (target && now - target.t > TARGET_MS) { target = null; nextTarget = now + 500; }
       const latest: LiveState = s.det ? classifyAt(s.liveT(), s.det) : 'unknown';
       if (bot) {
@@ -316,7 +328,9 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
         c.fillText('No breathing curve, no green band, no NOW, no tick. Same sway, same scoring.', W / 2, field + 78);
       }
       c.fillStyle = COLORS.ink; c.fillRect(0, field, W, 1.5);
-      if (!ok) {
+      if (weak && !lost) pill(c, `Weak signal: ${s.live.hint || 'hold still'} · shots not scored`, W / 2, field - 28,
+        { bg: COLORS.grey, fg: '#fff', font: FONT.body(15), h: 32, padX: 16 });
+      if (lost) {
         c.fillStyle = 'rgba(239,235,226,0.9)'; c.fillRect(0, 0, W, field);
         c.textAlign = 'center'; c.fillStyle = COLORS.ink; c.font = FONT.display(44);
         c.fillText('ROUND PAUSED', W / 2, field / 2 - 6);
