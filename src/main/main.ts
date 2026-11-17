@@ -47,7 +47,7 @@ const replayable = () => [
 
 function registerIpc() {
   ipcMain.handle('steady:config', () => ({
-    hasKey: KEY.length > 0, key: KEY, mode: MODE, sdkError, platform: `${process.platform}-${process.arch}`,
+    hasKey: KEY.length > 0, key: KEY, mode: MODE, sdkError, platform: `${process.platform}-${process.arch}`, dataDir: dataDir(),
   }));
   ipcMain.handle('steady:settings:get', () => readJson(settingsFile(), { consent: false, tick: true }));
   ipcMain.handle('steady:settings:set', (_e, s: unknown) => {
@@ -103,6 +103,12 @@ function createWindow() {
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.loadFile(path.join(ROOT, 'index.html'));
   if (process.env.SMARTSPECTRA_DIAGNOSTICS === '1') win.webContents.openDevTools({ mode: 'detach' });
+  // Dev check: STEADY_SNAPSHOT=out.png saves a screenshot of the UI (not the camera) and prints the screen text.
+  const snap = process.env.STEADY_SNAPSHOT;
+  if (snap) win.webContents.once('did-finish-load', () => setTimeout(async () => {
+    fs.writeFileSync(snap, (await win.webContents.capturePage()).toPNG());
+    console.log('[snapshot]', await win.webContents.executeJavaScript('document.body.innerText'));
+  }, 2500));
 }
 
 app.whenReady().then(() => {
