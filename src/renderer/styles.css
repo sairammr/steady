@@ -122,7 +122,6 @@ li + li { margin-top: var(--s1); }
   width: var(--rail-w); aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--r-md);
   border: 1px solid var(--ink); background: var(--ink); transform: scaleX(-1);
 }
-.pip-note { font-size: var(--t-xs); color: var(--ink-3); margin-top: calc(-1 * var(--s1)); }
 
 /* ---------- surfaces ---------- */
 .card, .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s4) var(--s5); box-shadow: var(--shadow); }

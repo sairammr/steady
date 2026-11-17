@@ -236,7 +236,7 @@ function settingsScreen() {
     <div class="card"><div class="kicker">Guided round</div>
       <label class="switch"><input type="checkbox" id="tick" ${settings.tick ? 'checked' : ''}> Soft tick when the pause opens (Guided round)</label></div>
     <div class="card"><div class="kicker">Camera</div><p>The camera only runs during calibration and rounds.</p><button id="camoff" class="danger camoff">Camera off now</button></div>
-    <div class="card"><div class="kicker">Consent</div><p>${settings.consent ? `Given ${esc(settings.consentAt ?? '')}.` : 'Not given.'}</p><button id="withdraw" ${settings.consent ? '' : 'disabled'}>Withdraw consent</button></div>
+    <div class="card"><div class="kicker">Consent</div><p>${settings.consent ? `Given ${esc(settings.consentAt ? new Date(settings.consentAt).toLocaleString() : '')}.` : 'Not given.'}</p><button id="withdraw" ${settings.consent ? '' : 'disabled'}>Withdraw consent</button></div>
     <div class="card danger-zone"><div class="kicker">Your data</div><p>Stored in <code>${esc(cfg.dataDir)}</code>: session summaries and raw signal recordings. No video or images.</p>
       <div class="row"><button id="delete" class="danger">Delete all data</button> <span id="deleted" class="done-note"></span></div></div>
     </div>

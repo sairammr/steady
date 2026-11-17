@@ -144,12 +144,15 @@ export function drawTarget(ctx: CanvasRenderingContext2D, x: number, y: number, 
 /** Time-left arc around a target (0..1 remaining). */
 export function drawTimeArc(ctx: CanvasRenderingContext2D, x: number, y: number, R: number, left: number) {
   ctx.save();
-  ctx.strokeStyle = COLORS.accent; ctx.lineWidth = 3; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.arc(x, y, R + 8, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * left); ctx.stroke();
+  ctx.strokeStyle = 'rgba(21,24,27,0.1)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x, y, R + 9, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = COLORS.ink2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(x, y, R + 9, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * Math.max(0, left)); ctx.stroke();
   ctx.restore();
 }
 
-/** Duplex scope reticle: thick outer posts, fine inner lines, lit centre dot. A paper halo keeps it readable on the black bull. */
+/** Duplex scope reticle: thick outer posts, fine inner cross, open centre with a lit dot.
+ *  A thin paper halo keeps it readable on the black bull. */
 export function drawCrosshair(ctx: CanvasRenderingContext2D, x: number, y: number) {
   ctx.save();
   ctx.lineCap = 'butt';
@@ -160,16 +163,17 @@ export function drawCrosshair(ctx: CanvasRenderingContext2D, x: number, y: numbe
     ctx.moveTo(x, y - b); ctx.lineTo(x, y - a); ctx.moveTo(x, y + a); ctx.lineTo(x, y + b);
     ctx.stroke();
   };
-  seg(19, 40, 7, 'rgba(250,248,243,0.9)'); seg(5, 19, 4, 'rgba(250,248,243,0.9)');
-  seg(20, 40, 4, COLORS.ink); seg(5, 20, 1.5, COLORS.ink);
-  ctx.strokeStyle = 'rgba(250,248,243,0.9)'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.arc(x, y, 26, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = COLORS.ink; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(x, y, 26, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = COLORS.card;
-  ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+  const halo = 'rgba(250,248,243,0.85)';
+  seg(29, 62, 7.5, halo); seg(7, 30, 3.5, halo);
+  seg(30, 62, 4.5, COLORS.ink); seg(8, 30, 1.25, COLORS.ink);
+  ctx.strokeStyle = halo; ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.arc(x, y, 44, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = COLORS.ink; ctx.lineWidth = 1.25;
+  ctx.beginPath(); ctx.arc(x, y, 44, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = COLORS.accent;
-  ctx.beginPath(); ctx.arc(x, y, 2.75, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
@@ -178,11 +182,11 @@ export function drawHole(ctx: CanvasRenderingContext2D, x: number, y: number, ri
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.fillStyle = COLORS.card;
-  ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = ring; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.arc(x, y, 8.5, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = ring; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(x, y, 10.5, 0, Math.PI * 2); ctx.stroke();
   ctx.fillStyle = COLORS.ink;
-  ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 

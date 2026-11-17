@@ -80,7 +80,7 @@ export const CAMOFF = '<span id="err"></span><button id="camoff" class="danger c
 export const liveLayout = (step: number, stage: string, rail = '') => `${header({ step, actions: CAMOFF })}
   <main class="live"><section class="stage">${stage}</section>
   <aside class="rail"><div class="pip-slot">Your camera picture shows here. Display only, never saved.</div>
-  <div class="pip-note">Webcam picture: display only, never saved.</div>${rail}</aside></main>`;
+  ${rail}</aside></main>`;
 
 export const stat = (label: string, value: string, sub = '') =>
   `<div class="stat"><div class="label">${label}</div><div class="value">${value}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;

@@ -191,9 +191,9 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
       <p>${guided ? 'Fire when the crosshair settles in the green pause.' : 'No help this time: same sway, same scoring. Find the pause on your own.'}</p>
       <p class="keys">Aim with the mouse. <kbd>any key</kbd> or click fires. Stay silent.</p></div>
     ${guided ? `<div class="card tight"><div class="kicker">Hit marks</div>
-      <div class="legend-col"><span class="chip dot green">In your pause ×1.0</span><span class="chip dot red">Mid-breath ×0.3</span><span class="chip dot grey">Not scored</span></div><div class="small dim" style="margin-top:6px">Not scored = talking or weak signal.</div></div>`
+      <div class="legend-col"><span class="chip dot green">In your pause ×1.0</span><span class="chip dot red">Mid-breath ×0.3</span><span class="chip dot grey">Not scored</span></div><div class="small dim" style="margin-top:6px">Not scored: talking or weak signal.</div></div>`
     : '<div class="card tight small">Hit marks stay neutral this round. Your breath timing for every shot is in the report.</div>'}
-    <div class="small dim">Breathing is shown ${(Ddisp / 1000).toFixed(1)} s behind live. Scores are provisional until the round ends.</div>`),
+    <div class="small dim">${guided ? `Breathing is shown ${(Ddisp / 1000).toFixed(1)} s behind live. ` : ''}Scores are provisional until the round ends.</div>`),
   { camoff: () => { s.aborted = true; } });
   const canvas = document.getElementById('c') as HTMLCanvasElement;
   const c = hidpi(canvas, W, H);
@@ -210,7 +210,7 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
   let wasNow = false;
   const t_start = Date.now();
 
-  canvas.addEventListener('mousemove', (e) => {
+  if (!bot) canvas.addEventListener('mousemove', (e) => {
     const r = canvas.getBoundingClientRect();
     mouse = [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H];
   });
@@ -234,8 +234,10 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
     nextTarget = now + 600;
   };
   const onKey = (e: KeyboardEvent) => { if (e.key !== 'Escape' && !e.repeat) fire(); };
-  canvas.addEventListener('mousedown', fire);
-  window.addEventListener('keydown', onKey);
+  if (!bot) { // the preview autopilot ignores real input
+    canvas.addEventListener('mousedown', fire);
+    window.addEventListener('keydown', onKey);
+  }
 
   try {
     while (!s.aborted && elapsed < ROUND_MS) {
@@ -262,7 +264,8 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
         const a = 1 - Math.max(0, (now - flash.at - 500) / 400);
         drawTarget(c, flash.tx, flash.ty, TARGET_R, a);
         drawHole(c, flash.x, flash.y, flash.color, a);
-        if (guided) pill(c, stateLabel(flash.state).toUpperCase(), flash.tx, flash.ty - TARGET_R - 22,
+        // label above the target, or below it near the top so it never sits under the NOW pill
+        if (guided) pill(c, stateLabel(flash.state).toUpperCase(), flash.tx, flash.ty < 170 ? flash.ty + TARGET_R + 24 : flash.ty - TARGET_R - 22,
           { bg: flash.color, fg: '#fff', font: FONT.display(16), h: 26, padX: 12 });
       }
       if (target) {
