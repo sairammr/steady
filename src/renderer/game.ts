@@ -203,8 +203,9 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
       const isNow = latest === 'pause';
       if (guided && isNow && !wasNow && settings.tick) beep();
       wasNow = isNow;
-      drawCurve(c, { x: 0, y: field, w: W, h: HUD_H }, s.det?.pts ?? [], tDisp - 12_000, tDisp,
-        guided ? { pauses: s.det?.pauses, unknown: unknownIntervals(s.lines.slice(-200), cal.D_ms) } : {});
+      // No-HUD hides the waveform too: the curve itself is a timing cue. Sway is the only feedback.
+      if (guided) drawCurve(c, { x: 0, y: field, w: W, h: HUD_H }, s.det?.pts ?? [], tDisp - 12_000, tDisp,
+        { pauses: s.det?.pauses, unknown: unknownIntervals(s.lines.slice(-200), cal.D_ms) });
       c.font = '16px system-ui'; c.textAlign = 'left'; c.fillStyle = COLORS.ink;
       c.fillText(`${Math.ceil((ROUND_MS - elapsed) / 1000)} s`, 16, 28);
       c.fillStyle = COLORS.dim;

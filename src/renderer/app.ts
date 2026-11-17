@@ -95,7 +95,7 @@ async function startSession() {
       <button id="go" class="primary">Start Guided round</button> <button id="camoff" class="danger">Camera off</button>`,
     { go: () => go(), camoff: () => { s.aborted = true; go(); } }));
     if (s.aborted || !(await playRound(s, 'guided', settings, base))) return abortLive();
-    await new Promise<void>((go) => show(`<h1>No-HUD round next</h1><p>Same sway and scoring, no green shading, no NOW, no tick. Can you find the pause on your own?</p>
+    await new Promise<void>((go) => show(`<h1>No-HUD round next</h1><p>Same sway and scoring, but no breathing curve, no green shading, no NOW, no tick. Can you find the pause on your own?</p>
       <button id="go" class="primary">Start No-HUD round</button> <button id="camoff" class="danger">Camera off</button>`,
     { go: () => go(), camoff: () => { s.aborted = true; go(); } }));
     if (s.aborted || !(await playRound(s, 'nohud', settings, base))) return abortLive();
