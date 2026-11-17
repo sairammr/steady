@@ -16,26 +16,51 @@ and the Presage repo docs). Everything else needs a live run (`npm run spike`, t
 - [x] Renderer SDK acquires the camera itself and emits `streamAvailable(MediaStream)`, so the picture-in-picture uses the SDK's own stream (no second `getUserMedia` needed).
 - [x] There is no auth-only API (no way to verify the key without starting a camera session), so the key was not smoke-tested.
 
-## Needs the live spike (`npm run spike`)
-- [ ] **Auth on unsigned `npm start` (macOS keychain entitlement).** If `kAuthenticationFailed`, follow `nodejs/README.md` macOS notes / ask on Presage Discord. Also watch for the intermittent 503 (issue #18).
-- [ ] **Telemetry really off.** Run `SMARTSPECTRA_DIAGNOSTICS=1 npm run spike` and check the SDK log for any telemetry session. Note what remains (licence/usage) for the post.
-- [ ] **Hand-picked metrics accepted:** `[CHEST_BREATHING, BREATHING_RATE, PULSE_RATE, TALKING]`. The recording has a `metrics_requested` mark (`picked` or `bundles`). The fallback triggers only if the thrown error's `code === SmartSpectraErrorCode.kConfigurationFailed` (numeric 3); confirm the thrown `code` really is numeric.
-- [ ] **Event cadence and samples/event** (summary line `cadence median … samples/event …`). Go needs cadence ≤ 1 s.
-- [ ] **Time unit and alignment:** summary says `epoch-aligned`; compare the `first_ts_raw` mark to its wall time.
-- [ ] **Revisions:** does a sample timestamp ever arrive twice, and does `stable` flip false → true? (summary `revisions … stable false→true …`). If never, the revision handling is harmless.
-- [ ] **How often `stable` is false** (summary `unstable samples …%`). If it is false for most of a session, scoring greys everything: set `requireStable: false` in `src/core/detector.ts` `DEFAULT_OPTS` and say so in the post.
-- [ ] **D (delivery delay)** median and p95. Go needs D ≤ 1.5 s. Note that D includes the first-frame anchor error of the SDK's timestamp mapping.
-- [ ] **Trace during 5 s post-exhale holds stays valid** (summary `holds: …% valid`, needs ≥ 80% each).
-- [ ] **Talking flag** fires during the 20 s counting segment and not outside it.
-- [ ] **Paced cycles:** orientation sign and L per cycle (summary `paced: …`).
-- [ ] **Picture-in-picture:** `pip_ok` mark (SDK stream rendered) and whether a second `getUserMedia` works while the SDK runs (`gum_second_ok/fail`; informational only).
-- [ ] **Validation hints** (`validation` marks): which codes appear in normal room light.
-- [ ] Verdict line: GO / DEGRADE / NO-GO per PRD §14. Cadence > 2 s is not covered by the PRD; the summary treats it as no-go.
+## D1 spike results (real, 2026-11-17, ~3 min)
+Recording `recordings/spike-2026-11-17T09-40-03-163Z.jsonl`, committed as `test/fixtures/real-spike-1.jsonl`
+(numeric trace/pulse/talking/marks only). Re-print: `npm run spike:summary -- test/fixtures/real-spike-1.jsonl`.
+Plot: `docs/d1/real-spike-1.png` (`npm run plot -- <file> out.svg`, then `qlmanage -t -s 2400 -o <dir> out.svg`).
+
+- [x] **Auth on unsigned launch:** worked (`scripts/launch.sh`, standalone app). Metrics flowed; `metrics_requested` = `bundles`.
+- [x] **Event cadence:** median 33 ms (p90 44), 1 sample/event, ~27.5 Hz. Go needs ≤ 1 s.
+- [x] **Time unit:** µs since epoch; `first_ts_raw` 1794908409502902 at wall 1794908409062.
+- [x] **Clock offset, not delay:** arrival − sample t has median **−413 ms** (min −447, p95 ≈ −249, max +184):
+  samples are stamped ~0.4 s AHEAD of the wall clock that receives them, so "arrival − t" cannot be a delay.
+  STEADY now keeps it as `cal.clock_ms` (wall ↔ sample clock map, used for talking/validity intervals and
+  display time) and reports **D = delivery jitter above the fastest sample: median 34 ms, p95 198 ms**
+  (a lower bound). The absolute sensor/filter delay is not observable from timestamps; scoring absorbs it
+  through `L` (paced) which is measured sample-time vs scheduled wall time.
+- [x] **Revisions:** none (0 repeated timestamps, 0 stable flips).
+- [x] **`stable` false 67% of samples** (it follows breathing-rate confidence). `requireStable` now defaults
+  to `false` everywhere; validity, talking (+2 s) and gap guards stay.
+- [x] **Holds** (judged by low slope, |slope| < k·A, from 1 s after HOLD): 81% / 83% / 78% flat → pause
+  detectable. The trace drifts during a hold (range ≈ 35% of A), so range/coverage was the wrong test.
+  Hold 1 was SDK-invalid (`FrameRateTooLow` from ~54 s to ~76 s): greyed live, though the trace looks fine.
+  Hold 2 sits high in the local range (user likely inhaled before holding), so the level rule does not open
+  a pause there (by design: a held top-of-inhale is not a natural pause); hold 3 is 48% inside a pause window.
+- [x] **Talking flag:** fired on 36% of events in the 20 s counting segment, 0% outside; it started ~5 s
+  after counting began. Every flagged event (+2 s) is `unknown`.
+- [x] **Orientation:** the pause is at the **bottom** of this trace (sharp peaks, long flat troughs). Dwell
+  asymmetry: 2.0× more time near the bottom → orient +1. The pacer correlation was weak (r −0.29 at the 3 s
+  search edge) and is overridden; `cal.orient_by` records the method.
+- [x] **Paced L:** 265 ± 265 ms from only 2 usable cycles (530, 0). Not reliable on this run (user did not
+  track the pacer closely); visually the trace follows the pacer with ~0.3–0.5 s lag at orient +1.
+- [x] **Picture-in-picture:** `pip_ok` (SDK stream 1280×720); `gum_second_ok`.
+- [x] **Validation hints seen:** Ok, NoFaceFound (start), FrameRateTooLow (2×, ~22 s total), ChestNotVisible (2×, brief).
+- [x] **Verdict: GO** (was NO-GO under the old range/stable hold test).
+- [ ] **Telemetry really off** (SDK diagnostics log) — not checked in this run.
+
+Detector retuned on this recording (`DEFAULT_OPTS`): smoothMs 300, slopeMs 300, k 0.2, minFlatMs 300,
+levelFrac 0.35, maxPauseMs 5000, requireStable false. Replay: 2 → 17 pause windows over 3 min; 8 in the
+60 s normal segment (~11 breaths; one shallow V-shaped trough is not a plateau and one breath falls in the
+SDK-invalid span). Sway (|dy|, max 42 px): median 0.4 px in pause windows vs 19 px mid-breath, after adding
+a 15% dead zone at the bottom of A (plateaus drift up to ~0.3 A above the 2-cycle trough; before it was 6.7 px).
 
 ## Needs one full live session (`npm start`)
-- [ ] Calibration passes (|r| ≥ 0.3 and ≥ 2 of 3 cycles matched); note D and L ± spread.
+- [ ] Calibration passes (|r| ≥ 0.3 and ≥ 2 of 3 cycles matched); note D and L ± spread. NB: on the D1 spike |r| was 0.29 with orient fixed by dwell, so this gate may reject real users.
 - [ ] Sway feels connected (rendered `D_p95 + 100 ms` behind live); not nauseating.
-- [ ] Detector thresholds (`k = 0.15`, `levelFrac = 0.3`, `minFlatMs = 300`, `smoothMs = 200`) are first guesses tuned on synthetic data only. Retune on the spike recording: `npm run replay -- recordings/<file>.jsonl` re-runs everything.
+- [x] Detector thresholds retuned on the D1 spike (above). Recheck on the first full session: `npm run replay -- <file>`.
+- [ ] Is paced `L` stable across sessions? If its spread stays > 300 ms, judge shots at `wall − clock_ms` instead (judged_at = wall − clock_ms + a fixed filter delay).
 - [ ] Talking during a round greys the shots (+ 2 s).
 - [ ] Report saved; `npm run replay -- "<userData>/steady/recordings/<session>.jsonl" --out a.json` twice gives identical files.
 - [ ] Settings → Delete all data empties the sessions and recordings folders.
