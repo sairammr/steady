@@ -22,7 +22,8 @@ test('delete all removes every session summary and raw recording (directory empt
 test('replay can only read files it listed', () => {
   const st = makeStorage(fs.mkdtempSync(path.join(os.tmpdir(), 'steady-')), '/nonexistent', 'test/fixtures');
   const list = st.replayList();
-  assert.ok(list.every((r) => r.synthetic));
+  assert.ok(list.every((r) => r.synthetic === r.name.startsWith('synthetic-')));
+  assert.ok(list.some((r) => r.name === 'real-spike-1.jsonl' && !r.synthetic));
   assert.ok(st.replayRead(list[0].path).startsWith('{"k":"meta"'));
   assert.throws(() => st.replayRead('/etc/passwd'), /not a replayable/);
 });

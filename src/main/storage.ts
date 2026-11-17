@@ -1,5 +1,5 @@
 // Local storage (no Electron imports, so it is unit-testable). Everything lives under `base`
-// except dev spike recordings (repo recordings/, gitignored) and the bundled synthetic fixtures.
+// except dev spike recordings (repo recordings/, gitignored) and the bundled test fixtures (synthetic + real-spike-1).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -20,7 +20,7 @@ export function makeStorage(base: string, devRecDir: string, fixturesDir: string
   const settingsFile = path.join(base, 'settings.json');
   const open = new Set<string>();
   const replayable = () => [
-    ...listJsonl(recDir, 'your sessions'), ...listJsonl(devRecDir, 'dev recordings'), ...listJsonl(fixturesDir, 'synthetic test fixtures'),
+    ...listJsonl(recDir, 'your sessions'), ...listJsonl(devRecDir, 'dev recordings'), ...listJsonl(fixturesDir, 'bundled test recordings'),
   ];
   return {
     base,
