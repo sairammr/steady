@@ -9,11 +9,15 @@ import { makeStorage } from './storage.ts';
 const ROOT = path.join(__dirname, '..');
 try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env: missing-key screen */ }
 const KEY = (process.env.PRESAGE_API_KEY ?? '').trim();
-const MODE = process.env.STEADY_MODE === 'spike' ? 'spike' : 'app';
+// Dev-only: STEADY_PREVIEW=<screen> renders one screen with SYNTHETIC data. No SDK, no camera, no key,
+// and a throwaway userData folder so it never touches real settings or sessions.
+const PREVIEW = process.env.STEADY_PREVIEW ?? '';
+const MODE = PREVIEW ? 'preview' : process.env.STEADY_MODE === 'spike' ? 'spike' : 'app';
+if (PREVIEW) app.setPath('userData', path.join(app.getPath('temp'), 'steady-preview'));
 
 let bindSmartSpectraIpc: ((w: BrowserWindow) => void) | null = null;
 let sdkError = '';
-try {
+if (!PREVIEW) try {
   // Loads the native runtime; may fail on unsupported platforms. Replay still works without it.
   bindSmartSpectraIpc = require('@smartspectra/node-sdk/main').bindSmartSpectraIpc;
 } catch (e) {
@@ -25,7 +29,7 @@ let store: ReturnType<typeof makeStorage>;
 function registerIpc() {
   store = makeStorage(path.join(app.getPath('userData'), 'steady'), path.join(ROOT, 'recordings'), path.join(ROOT, 'test', 'fixtures'));
   ipcMain.handle('steady:config', () => ({
-    hasKey: KEY.length > 0, key: KEY, mode: MODE, sdkError, platform: `${process.platform}-${process.arch}`, dataDir: store.base,
+    hasKey: !PREVIEW && KEY.length > 0, key: PREVIEW ? '' : KEY, mode: MODE, preview: PREVIEW, sdkError, platform: `${process.platform}-${process.arch}`, dataDir: store.base,
   }));
   ipcMain.handle('steady:settings:get', () => store.getSettings());
   ipcMain.handle('steady:settings:set', (_e, s: unknown) => store.setSettings(s));
@@ -41,21 +45,22 @@ function registerIpc() {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1280, height: 820, backgroundColor: '#0e1014', title: MODE === 'spike' ? 'STEADY D1 spike' : 'STEADY',
+    width: 1280, height: 720, useContentSize: true, minWidth: 1024, minHeight: 640, backgroundColor: '#f1ede4', title: MODE === 'spike' ? 'STEADY D1 spike' : 'STEADY',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'), // bundles @smartspectra/node-sdk/preload + our bridge
       contextIsolation: true, sandbox: true, nodeIntegration: false,
       backgroundThrottling: !process.env.STEADY_SNAPSHOT,
     },
   });
-  if (bindSmartSpectraIpc) bindSmartSpectraIpc(win);
+  if (bindSmartSpectraIpc && !PREVIEW) bindSmartSpectraIpc(win);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.loadFile(path.join(ROOT, 'index.html'));
   if (process.env.SMARTSPECTRA_DIAGNOSTICS === '1') win.webContents.openDevTools({ mode: 'detach' });
   // Dev check: STEADY_SNAPSHOT=out.png saves a screenshot of the UI (not the camera) and prints the screen text.
   const snap = process.env.STEADY_SNAPSHOT;
-  // STEADY_SNAPSHOT_CLICKS="replay,f2" clicks those element ids first (1 s apart).
+  // STEADY_SNAPSHOT_CLICKS="replay,f2" clicks those element ids first (2 s apart);
+  // STEADY_SNAPSHOT_WAIT=ms changes the initial wait (default 2500).
   if (snap) win.webContents.once('did-finish-load', () => setTimeout(async () => {
     for (const id of (process.env.STEADY_SNAPSHOT_CLICKS ?? '').split(',').filter(Boolean)) {
       await win.webContents.executeJavaScript(`document.getElementById(${JSON.stringify(id)})?.click()`);
@@ -67,7 +72,8 @@ function createWindow() {
     const camOnScreen = await win.webContents.executeJavaScript(`!!document.getElementById('pip')`);
     if (!camOnScreen) fs.writeFileSync(snap, (await win.webContents.capturePage()).toPNG());
     console.log('[snapshot]', await win.webContents.executeJavaScript('document.body.innerText'));
-  }, 2500));
+    if (PREVIEW) app.quit();
+  }, Number(process.env.STEADY_SNAPSHOT_WAIT) || 2500));
 }
 
 app.whenReady().then(() => {
@@ -75,7 +81,7 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((wc, permission, cb, details) => {
     const url = (details && (details as { requestingUrl?: string }).requestingUrl) || wc?.getURL() || '';
     const media = (details as { mediaTypes?: string[] }).mediaTypes ?? [];
-    cb(permission === 'media' && media.length === 1 && media[0] === 'video' && url.startsWith('file://'));
+    cb(!PREVIEW && permission === 'media' && media.length === 1 && media[0] === 'video' && url.startsWith('file://'));
   });
   registerIpc();
   createWindow();
