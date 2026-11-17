@@ -1,0 +1,12 @@
+node_modules/
+dist/
+out/
+.env
+.env.*
+!.env.example
+# Raw signal recordings of real people stay local. Add a consented recording
+# on purpose with `git add -f recordings/<file>.jsonl`.
+recordings/*
+!recordings/README.md
+*.log
+.DS_Store
