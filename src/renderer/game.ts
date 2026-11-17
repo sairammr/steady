@@ -59,6 +59,9 @@ export class LiveSession {
   }
 
   lastSampleT() { return this.det?.pts.at(-1)?.t ?? 0; }
+  /** Latest time the live state can be read at. A pause still open at the end of the buffer is
+   *  closed at the last sample (end exclusive), so read 1 ms before it or it never shows as a pause. */
+  liveT() { return this.lastSampleT() - 1; }
   signalOk() { return this.live.valid && this.live.running && Date.now() - this.live.lastArrival < 2500; }
   async stop() { await this.live.stop(); pip(null); }
 }
@@ -216,7 +219,7 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
     if (!target || !s.signalOk()) return;
     const impact: [number, number] = [Math.round((mouse[0] + offset[0]) * 100) / 100, Math.round((mouse[1] + offset[1]) * 100) / 100];
     const judged = now + cal.L_ms;
-    const live_state = s.det ? classifyAt(Math.min(judged, s.lastSampleT()), s.det) : 'unknown'; // provisional
+    const live_state = s.det ? classifyAt(Math.min(judged, s.liveT()), s.det) : 'unknown'; // provisional
     const shot: ShotLine = {
       k: 'shot', t: now, round: type, t_target: target.t, target: [Math.round(target.x), Math.round(target.y)],
       mouse: [Math.round(mouse[0]), Math.round(mouse[1])], offset: [...offset], impact, t_disp: Math.round(now - Ddisp),
@@ -246,7 +249,7 @@ export async function playRound(s: LiveSession, type: RoundType, settings: Setti
       if (ok) offset = swayOffset(m!.x, m!.trough, m!.A, tDisp);
       if (!target && ok && now >= nextTarget) target = { x: 120 + Math.random() * (W - 240), y: 90 + Math.random() * (field - 180), t: now };
       if (target && now - target.t > TARGET_MS) { target = null; nextTarget = now + 500; }
-      const latest: LiveState = s.det ? classifyAt(s.lastSampleT(), s.det) : 'unknown';
+      const latest: LiveState = s.det ? classifyAt(s.liveT(), s.det) : 'unknown';
       if (bot) {
         const b = bot({ target, now, state: latest });
         if (b.aim) mouse = b.aim;
