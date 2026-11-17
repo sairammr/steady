@@ -180,6 +180,7 @@ function settingsScreen() {
       if (live) { live.aborted = true; await live.stop(); live = null; }
       settings = { ...settings, consent: false, consentAt: undefined };
       await api().setSettings(settings);
+      if (confirm('Consent withdrawn. Also delete all session summaries and raw recordings now?')) await api().deleteAll();
       consent();
     },
     delete: async () => {

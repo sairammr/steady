@@ -4,6 +4,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { makeStorage } from './storage.ts';
 
 const ROOT = path.join(__dirname, '..');
 try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env: missing-key screen */ }
@@ -19,74 +20,22 @@ try {
   sdkError = String((e as Error).message ?? e);
 }
 
-const dataDir = () => path.join(app.getPath('userData'), 'steady');
-const sessionsDir = () => path.join(dataDir(), 'sessions');
-const userRecDir = () => path.join(dataDir(), 'recordings');
-const devRecDir = path.join(ROOT, 'recordings');
-const fixturesDir = path.join(ROOT, 'test', 'fixtures');
-const settingsFile = () => path.join(dataDir(), 'settings.json');
-
-function readJson<T>(file: string, fallback: T): T {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')) as T; } catch { return fallback; }
-}
-
-const openRecordings = new Map<string, string>();
-const safeName = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, '_');
-
-function listJsonl(dir: string, source: string) {
-  try {
-    return fs.readdirSync(dir).filter((f) => f.endsWith('.jsonl')).sort()
-      .map((f) => ({ name: f, path: path.join(dir, f), source, synthetic: f.startsWith('synthetic-') }));
-  } catch { return []; }
-}
-const replayable = () => [
-  ...listJsonl(userRecDir(), 'your sessions'),
-  ...listJsonl(devRecDir, 'dev recordings'),
-  ...listJsonl(fixturesDir, 'synthetic test fixtures'),
-];
+let store: ReturnType<typeof makeStorage>;
 
 function registerIpc() {
+  store = makeStorage(path.join(app.getPath('userData'), 'steady'), path.join(ROOT, 'recordings'), path.join(ROOT, 'test', 'fixtures'));
   ipcMain.handle('steady:config', () => ({
-    hasKey: KEY.length > 0, key: KEY, mode: MODE, sdkError, platform: `${process.platform}-${process.arch}`, dataDir: dataDir(),
+    hasKey: KEY.length > 0, key: KEY, mode: MODE, sdkError, platform: `${process.platform}-${process.arch}`, dataDir: store.base,
   }));
-  ipcMain.handle('steady:settings:get', () => readJson(settingsFile(), { consent: false, tick: true }));
-  ipcMain.handle('steady:settings:set', (_e, s: unknown) => {
-    fs.mkdirSync(dataDir(), { recursive: true });
-    fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
-  });
-  // Recordings hold raw signal values only (JSONL). No frame or image is ever passed here.
-  ipcMain.handle('steady:rec:open', (_e, name: string, kind: 'session' | 'spike') => {
-    const dir = kind === 'spike' ? devRecDir : userRecDir();
-    fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, safeName(name) + '.jsonl');
-    openRecordings.set(file, file);
-    return file;
-  });
-  ipcMain.handle('steady:rec:append', (_e, file: string, text: string) => {
-    if (!openRecordings.has(file)) throw new Error('recording not open');
-    fs.appendFileSync(file, text);
-  });
-  ipcMain.handle('steady:session:save', (_e, id: string, json: string) => {
-    fs.mkdirSync(sessionsDir(), { recursive: true });
-    fs.writeFileSync(path.join(sessionsDir(), safeName(id) + '.json'), json);
-  });
-  ipcMain.handle('steady:session:list', () => {
-    try {
-      return fs.readdirSync(sessionsDir()).filter((f) => f.endsWith('.json')).sort().slice(-10)
-        .map((f) => readJson(path.join(sessionsDir(), f), null)).filter(Boolean);
-    } catch { return []; }
-  });
-  ipcMain.handle('steady:data:deleteAll', () => {
-    for (const dir of [sessionsDir(), userRecDir()]) fs.rmSync(dir, { recursive: true, force: true });
-    openRecordings.clear();
-    return { sessions: fs.existsSync(sessionsDir()), recordings: fs.existsSync(userRecDir()) };
-  });
-  ipcMain.handle('steady:replay:list', () => replayable());
-  ipcMain.handle('steady:replay:read', (_e, file: string) => {
-    // Trust boundary: only files we listed ourselves can be read.
-    if (!replayable().some((r) => r.path === file)) throw new Error('not a replayable file');
-    return fs.readFileSync(file, 'utf8');
-  });
+  ipcMain.handle('steady:settings:get', () => store.getSettings());
+  ipcMain.handle('steady:settings:set', (_e, s: unknown) => store.setSettings(s));
+  ipcMain.handle('steady:rec:open', (_e, name: string, kind: 'session' | 'spike') => store.recOpen(name, kind));
+  ipcMain.handle('steady:rec:append', (_e, file: string, text: string) => store.recAppend(file, text));
+  ipcMain.handle('steady:session:save', (_e, id: string, json: string) => store.saveSession(id, json));
+  ipcMain.handle('steady:session:list', () => store.listSessions());
+  ipcMain.handle('steady:data:deleteAll', () => store.deleteAll());
+  ipcMain.handle('steady:replay:list', () => store.replayList());
+  ipcMain.handle('steady:replay:read', (_e, file: string) => store.replayRead(file));
   ipcMain.handle('steady:log', (_e, text: string) => { console.log(text); });
 }
 
@@ -96,6 +45,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'), // bundles @smartspectra/node-sdk/preload + our bridge
       contextIsolation: true, sandbox: true, nodeIntegration: false,
+      backgroundThrottling: !process.env.STEADY_SNAPSHOT,
     },
   });
   if (bindSmartSpectraIpc) bindSmartSpectraIpc(win);
@@ -105,7 +55,14 @@ function createWindow() {
   if (process.env.SMARTSPECTRA_DIAGNOSTICS === '1') win.webContents.openDevTools({ mode: 'detach' });
   // Dev check: STEADY_SNAPSHOT=out.png saves a screenshot of the UI (not the camera) and prints the screen text.
   const snap = process.env.STEADY_SNAPSHOT;
+  // STEADY_SNAPSHOT_CLICKS="replay,f2" clicks those element ids first (1 s apart).
   if (snap) win.webContents.once('did-finish-load', () => setTimeout(async () => {
+    for (const id of (process.env.STEADY_SNAPSHOT_CLICKS ?? '').split(',').filter(Boolean)) {
+      await win.webContents.executeJavaScript(`document.getElementById(${JSON.stringify(id)})?.click()`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    win.webContents.invalidate(); // occluded windows may not repaint on their own
+    await new Promise((r) => setTimeout(r, 500));
     fs.writeFileSync(snap, (await win.webContents.capturePage()).toPNG());
     console.log('[snapshot]', await win.webContents.executeJavaScript('document.body.innerText'));
   }, 2500));

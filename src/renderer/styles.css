@@ -23,4 +23,4 @@ canvas { display:block; background:#0b0d11; border-radius:10px; }
 #pip { position:fixed; right:16px; bottom:16px; width:200px; border-radius:8px; border:2px solid #333; transform: scaleX(-1); }
 .topbar { display:flex; justify-content:space-between; align-items:center; }
 .chip { display:inline-block; padding:3px 10px; border-radius:99px; background:#2a3040; margin-right:6px; font-size:13px; }
-.chip.green { background:var(--green); color:#111; } .chip.red { background:var(--red); color:#111; } .chip.grey { background:var(--grey); }
+.chip.green { background:var(--green); color:#111; } .chip.red { background:var(--red); color:#111; } .chip.grey { background:var(--grey); color:#fff; }
