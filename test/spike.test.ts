@@ -19,11 +19,12 @@ test('summarises the SYNTHETIC D1 protocol recording and says GO', () => {
 });
 
 test('verdict degrades on slow delivery and is no-go on huge delay', () => {
-  const slow = (cadence: number, delay: number): Line[] => {
+  // delay hits 3 of every 4 events; the 4th arrives promptly, so D (jitter above the fastest) ≈ delay
+  const slow = (cadence: number, delay: number, every = false): Line[] => {
     const out: Line[] = [{ k: 'meta', v: 1, sdk: 'x', t0_wall: 0, sdk_time_unit: 'ms', cal: null }];
     for (let i = 1; i <= 40; i++) {
       const upper = Array.from({ length: 5 }, (_, j) => ({ t: i * cadence - (5 - j) * 50, v: Math.sin(i + j), s: true }));
-      out.push({ k: 'm', t_arr: i * cadence + delay, upper, rate: null, pulse: null, talking: false, valid: true } as MLine);
+      out.push({ k: 'm', t_arr: i * cadence + (every || i % 4 ? delay : 0), upper, rate: null, pulse: null, talking: false, valid: true } as MLine);
     }
     return out;
   };
@@ -31,4 +32,8 @@ test('verdict degrades on slow delivery and is no-go on huge delay', () => {
   assert.equal(summarizeSpike(slow(500, 2000)).verdict, 'degrade');
   assert.equal(summarizeSpike(slow(500, 4000)).verdict, 'no-go');
   assert.equal(summarizeSpike(slow(500, 100)).verdict, 'go');
+  // a constant offset is indistinguishable from the SDK clock anchor: not a delay
+  const constant = summarizeSpike(slow(500, 4000, true));
+  assert.equal(constant.verdict, 'go');
+  assert.ok(constant.D_ms < 300 && constant.clock_ms > 4000);
 });
