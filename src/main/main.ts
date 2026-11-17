@@ -63,7 +63,9 @@ function createWindow() {
     }
     win.webContents.invalidate(); // occluded windows may not repaint on their own
     await new Promise((r) => setTimeout(r, 500));
-    fs.writeFileSync(snap, (await win.webContents.capturePage()).toPNG());
+    // Never capture while the webcam picture is on screen: no camera frame may reach the disk.
+    const camOnScreen = await win.webContents.executeJavaScript(`!!document.getElementById('pip')`);
+    if (!camOnScreen) fs.writeFileSync(snap, (await win.webContents.capturePage()).toPNG());
     console.log('[snapshot]', await win.webContents.executeJavaScript('document.body.innerText'));
   }, 2500));
 }
