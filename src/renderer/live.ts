@@ -1,7 +1,7 @@
 // Live SDK wrapper, following electron-quickstart/renderer.js: SDK built in the renderer,
 // metrics decoded with decodeMetrics in the 'metrics' handler. Each event becomes one raw
 // `m` line. Only numbers leave this module; the camera stream goes to a <video> for display only.
-import { SmartSpectraSDK, SmartSpectraErrorCode, MetricType, ProcessingStatus, ValidationCode, breathingMetrics, cardioMetrics, faceMetrics } from '@smartspectra/node-sdk/renderer';
+import { SmartSpectraSDK, ProcessingStatus, ValidationCode, breathingMetrics, cardioMetrics, faceMetrics } from '@smartspectra/node-sdk/renderer';
 import { decodeMetrics } from '@smartspectra/node-sdk/messages';
 import type { Line, MLine, MarkLine, Sample } from '../core/recording.ts';
 
@@ -16,9 +16,6 @@ const toNum = (ts: unknown): number => {
 const VALIDATION_NAMES: Record<number, string> = Object.fromEntries(Object.entries(ValidationCode).map(([k, v]) => [v, k.replace(/^k/, '')]));
 const STATUS_NAMES: Record<number, string> = Object.fromEntries(Object.entries(ProcessingStatus).map(([k, v]) => [v, k.replace(/^k/, '')]));
 
-// Hand-picked to keep payloads small (no landmarks/expressions). Fallback to bundles if rejected.
-// VERIFY D1: whether hand-picked TALKING / PULSE_RATE are accepted on their own.
-const PICKED = [MetricType.CHEST_BREATHING, MetricType.BREATHING_RATE, MetricType.PULSE_RATE, MetricType.TALKING];
 const BUNDLES = [...breathingMetrics, ...cardioMetrics, ...faceMetrics];
 
 export type LiveEvents = {
@@ -98,19 +95,12 @@ export class Live {
 
   async start() {
     if (this.sdk) return;
-    try {
-      this.sdk = this.build(PICKED);
-      await this.sdk.start();
-      this.mark('metrics_requested', 'picked');
-    } catch (e) {
-      try { this.sdk?.destroy(); } catch { /* ignore */ }
-      this.sdk = null;
-      if ((e as { code?: unknown }).code !== SmartSpectraErrorCode.kConfigurationFailed) throw e;
-      this.mark('metrics_fallback', String((e as Error).message ?? e));
-      this.sdk = this.build(BUNDLES);
-      await this.sdk.start();
-      this.mark('metrics_requested', 'bundles');
-    }
+    // D1 finding: the hand-picked list does not throw; the SDK stalls at Starting for 30 s
+    // (error 8) with a 0x0 camera stream. The bundles (as in Presage's quickstart) are the
+    // only verified-working config, so request them directly.
+    this.sdk = this.build(BUNDLES);
+    await this.sdk.start();
+    this.mark('metrics_requested', 'bundles');
   }
 
   async stop() {
