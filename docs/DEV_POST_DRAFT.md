@@ -1,6 +1,7 @@
 ---
 title: "STEADY: your breathing moves the crosshair"
 tags: presagechallenge, devchallenge, electron, typescript
+cover_image: https://raw.githubusercontent.com/sairammr/steady/main/docs/screenshots/guided.png
 ---
 
 ## What I Built
@@ -10,6 +11,12 @@ tags: presagechallenge, devchallenge, electron, typescript
 Shooters are coached to release the shot in the natural respiratory pause. Beginners can't see whether they do it; they only feel unsteady. Today that feedback needs a coach watching or a chest strap. A webcam is something every shooter already owns.
 
 A session is consent → 45 s calibration → a 60 s **Guided** round (pause shaded green) → a 60 s **No-HUD** round (no help) → a report with every shot placed on your breathing curve.
+
+![Guided round: the crosshair rides the breath; the green band is the pause (app screenshot, synthetic data)](https://raw.githubusercontent.com/sairammr/steady/main/docs/screenshots/guided.png)
+
+![My real chest trace from the SDK with the pauses STEADY detected (real recording)](https://raw.githubusercontent.com/sairammr/steady/main/docs/d1/real-spike-1.png)
+
+![Report: every shot on the breathing curve (app screenshot, synthetic data)](https://raw.githubusercontent.com/sairammr/steady/main/docs/screenshots/report.png)
 
 ## Demo
 
@@ -31,12 +38,12 @@ No key or camera? `npm run replay -- recordings/real-session-1.jsonl` runs the w
 
 **Signals used:** chest breathing trace (`breathing.upperTrace`, the core), breathing rate, pulse rate (calm/elevated vs your own baseline only), talking (`face.talking`) and SDK validation status.
 
-- **Trace → sway.** Crosshair offset = `clamp((x − trough)/A, 0, 1) × maxOffset`, mostly vertical, drawn about 0.36 s behind live with interpolation because metrics arrive in chunks (median 33 ms apart).
-- **Trace → pause → score.** Pause opens after an exhale when the trace is flat for ≥ 300 ms in the bottom 30 % of the breath, closes when the inhale starts or after 5 s. Score = hit accuracy × 1.0 in the pause, × 0.3 mid-breath. Final scores are computed post-round over the final trace with the same function that colours shots live.
+- **Trace → sway.** Crosshair offset = `clamp((x − trough)/A, 0, 1) × maxOffset`, mostly vertical, drawn about a quarter second behind the newest sample (≈ 250 ms in my session, shown on the HUD), interpolated, because delivery is jittery.
+- **Trace → pause → score.** Pause opens after an exhale when the trace is flat for ≥ 300 ms in the bottom 35 % of the breath, closes when the inhale starts or after 5 s. Score = hit accuracy × 1.0 in the pause, × 0.3 mid-breath. Final scores are computed post-round over the final trace with the same function that colours shots live.
 - **Talking / weak signal → grey.** Shots while talking (+ 2 s) or with an invalid signal are not scored.
 
 **Measured honesty** (method in the README):
-- Delivery delay `D` (arrival − sample timestamp, no human in the loop): **105 ms** median, p95 261 ms (jitter above the fastest sample; the SDK stamps samples ~0.4 s ahead of the receiving wall clock, so raw arrival − timestamp is negative and STEADY maps the two clocks instead).
+- Delivery delay `D` (arrival − sample timestamp, no human in the loop): **105 ms** median, p95 261 ms (jitter above the fastest sample). The offset between the SDK sample clock and the wall clock differed between my two recordings (−413 ms, +109 ms), so STEADY measures it at calibration instead of assuming one.
 - Timing offset `L` from a paced guide (3 cycles, scheduled timestamps): **not reliable yet**: 265 ± 265 ms from 2 usable cycles on my first recording, 0 on the second. STEADY does not depend on it.
 - Metrics cadence median 33 ms (p90 44 ms), 1 sample per event (~27.5 Hz), revisions: none (0 repeated timestamps).
 - Detector: tuned on one real recording (17 pauses found vs 2 before tuning), then run unchanged on a second real session: 11 pause windows in 171 s. No held-out agreement score yet; two recordings is too few to claim one.
@@ -53,18 +60,18 @@ Best Overall Human-Sensing Experience · Most Creative or Delightful Use · Best
 - **Stored (locally only):** session summaries and raw signal recordings (JSONL: breathing trace, breathing rate, pulse, talking/validity flags, timestamps, shots), used for replay and post-round scoring. **Never stored:** video frames or images; the webcam picture is display only.
 - **Shared:** with nobody. No analytics, no crash reporting, no cloud.
 - **Leaves the device:** Presage SDK key verification, usage metering and model download (key + device/licence info). SDK telemetry is disabled (`enableTelemetry: false`); the SDK forwards the flag to its main process (`js/main/index.js`). I have not captured network traffic to prove it. See Presage's [telemetry page](https://smartspectra.presagetech.com/docs/telemetry-and-privacy).
-- **AI use:** no AI or LLM service runs in the app; the coaching insight is rule-based. Presage's on-device models compute the signals. The code was written with Claude Code (session below).
+- **AI use:** no AI or LLM service runs in the app; the coaching insight is rule-based. Presage's on-device models compute the signals. The code was written with Claude Code.
 - **Not medical:** a training aid for breath timing; not a medical device; not for diagnosis. Pulse is only calm/elevated relative to your own session baseline.
 - **Retention and deletion:** kept until you delete it. Settings → Delete all data removes every session summary and every raw recording.
 
-## Agent Session
+## Built with an agent
 
 Built with Claude Code: PRD, detector tuning on my real recordings, UI and this post's numbers all came out of agent sessions, with every number re-measured by `npm run replay` on the bundled recording.
 
 ## Limitations
 
 - Seated desk practice only: the SDK needs a still, silent, front-facing subject in even light. Not for a real shooting stance.
-- The sway lags real breathing by ~105 ms median (p95 261 ms); the HUD says so.
+- The sway is drawn about a quarter second behind the newest sample; the HUD says so.
 - About 2.75 live minutes per session, so ≈ 18 sessions per free key.
 - Tested on Apple Silicon only.
 - Rifle/pistol natural-pause technique; archery's partial-exhale hold is not modelled.

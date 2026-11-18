@@ -11,7 +11,7 @@ export type DetectOpts = {
   maxGapMs: number;     // sample gap that counts as signal loss
   requireStable: boolean;
 };
-// ponytail: thresholds are first guesses tuned on synthetic data; retune on D1 recordings.
+// Tuned on the real D1 spike recording (docs/VERIFY_D1.md); may need retuning for other people.
 export const DEFAULT_OPTS: DetectOpts = {
   smoothMs: 300, slopeMs: 300, k: 0.2, minFlatMs: 300, levelFrac: 0.35,
   maxPauseMs: 5000, maxGapMs: 500, requireStable: false,

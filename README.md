@@ -8,7 +8,7 @@ A seated breath-timing trainer for rifle and pistol shooters (air rifle and air 
 
 ## Setup
 
-Requires macOS on Apple Silicon (or another SDK-supported platform), Node 22.6+ and a webcam.
+Requires macOS on Apple Silicon (tested), Node 22.6+ and a webcam. `npm start` uses macOS `open` so the camera permission works; on other SDK platforms use `npm run start:inline` (untested).
 
 ```bash
 npm install
@@ -41,14 +41,14 @@ Try it without a camera: `npm run replay -- recordings/real-session-1.jsonl` rep
 5. **Report:** the breathing curve of each round with every shot as a green (in pause), red (mid-breath) or grey (not scored) dot, Guided vs No-HUD pause rate, and one rule-based coaching insight.
 
 ### Pause detection (`src/core/detector.ts`)
-- Smooth the chest trace (200 ms centred moving average) and orient it so an inhale goes up.
+- Smooth the chest trace (300 ms centred moving average) and orient it so an inhale goes up.
 - Keep a trailing 2-breath min/max model: trough level and amplitude `A`.
-- A **pause opens** after an exhale when `|slope| < 0.15·A` per second for ≥ 300 ms **and** the level is in the bottom 30 % of `A`. The top of an inhale is also flat but fails the level test, so it never counts.
+- A **pause opens** after an exhale when `|slope| < 0.2·A` per second for ≥ 300 ms **and** the level is in the bottom 35 % of `A`. The top of an inhale is also flat but fails the level test, so it never counts.
 - It **closes** when the inhale starts, or after 5 s ("breathe again": a held breath is not a natural pause).
 - Unstable samples, gaps over 500 ms, SDK-invalid spans and talking (+ 2 s) are **unknown**. Shots there are grey and not scored.
 
 ### Sway (`src/core/sway.ts`)
-Position-based: `offset = clamp((x − trough) / A, 0, 1) × 42 px`, mostly upward like a rifle rising with the chest, plus a small fixed tremor. Zero at the trough (the pause), maximal at full inhale, so a shot in the pause really is more accurate. Metrics arrive in chunks, so the crosshair is drawn from the trace at `now − (D_p95 + 100 ms)` with linear interpolation, and the HUD states that delay. If the signal is invalid the sway freezes and the round pauses.
+Position-based: `offset = clamp((x − trough) / A, 0, 1) × 42 px`, mostly upward like a rifle rising with the chest, plus a small fixed tremor. Zero at the trough (the pause), maximal at full inhale, so a shot in the pause really is more accurate. Metrics arrive in chunks, so the crosshair is drawn from the trace at `now − (D_p95 + 100 ms)` with linear interpolation, and the HUD states that delay (about a quarter second in my real session). Short signal dropouts (under 1.5 s) are ridden through; longer weak spells keep the round running but grey out shots, and the round only pauses after 5 s of lost signal.
 
 ### Scoring (`src/core/scoring.ts`)
 - Shot score = hit accuracy (0–100 from the swayed impact's distance to the target centre) × breath multiplier: **pause ×1.0, mid-breath ×0.3, unknown not scored**.
@@ -114,23 +114,27 @@ Calibration runs before the file can start with its `meta` line, so the recorder
 - **Delete:** Settings → Delete all data removes every session summary and raw recording (tested in `test/storage.test.ts`). Withdrawing consent stops the camera and offers the same deletion.
 - The API key lives in `.env` (gitignored) and is never committed.
 
-## What is real vs pending live verification
+## What is real vs mocked vs deferred
 | Item | Status |
 |---|---|
-| Detector, calibration, sway, scoring, insights, recorder, replay | Implemented and unit-tested, **on synthetic data only** |
+| Detector, calibration, sway, scoring, insights, recorder, replay | Implemented; unit-tested on synthetic fixtures **and** on a real recording (`test/real.test.ts`) |
 | Replay CLI and in-app Replay | Working, deterministic (tested) |
 | Missing-key screen, consent, report, replay screens | Rendered and checked in Electron |
-| Live SDK path (auth, metrics decoding, talking, pulse, validation, telemetry off, webcam picture) | Implemented against SDK 3.5.0 docs and types, **pending live verification** (see `docs/VERIFY_D1.md`) |
-| Measured `D`, `L`, cadence, detector agreement on real recordings | **Not measured yet**; `npm run spike` produces them |
-| Bundled real recordings (clean + talking) | **Not recorded yet**; only synthetic fixtures ship |
+| Live SDK path (auth, metrics decoding, talking, pulse, validation, webcam picture) | **Verified live** on SDK 3.5.0, Apple Silicon (see `docs/VERIFY_D1.md`) |
+| Measured cadence, delivery jitter `D` | **Measured**: 33 ms median cadence, 1 sample/event, D 105 ms median (p95 261) on `recordings/real-session-1.jsonl` |
+| Per-user timing offset `L` | **Not reliable yet** (too few paced cycles); scoring does not depend on it |
+| Detector agreement score | **Deferred**: only 2 real recordings so far |
+| Telemetry off | Set in code (`enableTelemetry: false`); network traffic not captured |
+| Bundled real recording | `recordings/real-session-1.jsonl` (171 s, mine, numbers only). Recorded on the build before the dropout fix, so its rounds ran short |
+| Mocked | Nothing in the live path. `synthetic-*` fixtures are labelled synthetic everywhere |
 
 ## Limitations
 - Seated, front-facing, still and silent only: the SDK needs one still face in even light. Not for a real shooting stance.
 - Displayed sway lags real breathing by the measured delivery delay; the HUD states it.
 - `L` includes your pacer-following delay, so it is a per-user offset, not sensor latency.
-- Detector thresholds are first guesses tuned on synthetic traces; they will be retuned on real recordings.
+- Detector thresholds were tuned on 2 of my own real recordings; other people may need retuning.
 - About 2.75 live minutes per session, so ≈ 18 sessions per free key.
-- Apple Silicon is the tested target (the SDK also ships Linux and Windows runtimes).
+- Tested on macOS Apple Silicon only (the SDK also ships Linux and Windows runtimes).
 - Rifle/pistol natural-respiratory-pause technique only; archery's partial-exhale hold is not modelled.
 - Talking breaks the breathing signal; those shots are greyed, never guessed.
 
