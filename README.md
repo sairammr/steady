@@ -30,7 +30,7 @@ Without a key the app starts on a "Set PRESAGE_API_KEY in .env" screen, and you 
 
 Screen previews for development (no camera, no key, no SDK, throwaway profile): `npm run build && STEADY_PREVIEW=guided STEADY_SNAPSHOT=out.png npx electron .` renders one screen from the synthetic fixtures with an autopilot and saves a screenshot. Screens: `missing consent home replay report settings warmup sync calibrated guided guided-talking nohud-intro nohud spike spike-result`; `STEADY_SNAPSHOT_WAIT=ms` sets the capture delay. Captures live in `docs/screenshots/`.
 
-Try it without a camera: `npm run replay -- test/fixtures/synthetic-talking.jsonl`. These fixtures are **synthetic test data** (generated, not a person) and are labelled that way in the app and the CLI.
+Try it without a camera: `npm run replay -- recordings/real-session-1.jsonl` replays one of my real sessions (numbers only, no video). `npm run replay -- test/fixtures/synthetic-talking.jsonl` runs a synthetic one. The `synthetic-*` fixtures are **synthetic test data** (generated, not a person) and are labelled that way in the app and the CLI.
 
 ## How it works
 
