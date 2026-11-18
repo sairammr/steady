@@ -20,7 +20,7 @@ A session is consent → 45 s calibration → a 60 s **Guided** round (pause sha
 
 ## Demo
 
-{{VIDEO_EMBED}}
+{% embed https://youtu.be/0zXycnYzffQ %}
 
 ## Code
 
