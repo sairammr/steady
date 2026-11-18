@@ -1,5 +1,7 @@
 # STEADY
 
+**Demo video (1:28):** https://youtu.be/0zXycnYzffQ
+
 **Your breathing moves the crosshair, the way it moves a rifle. Fire in your natural respiratory pause, where the sway stops, measured live by your webcam.**
 
 A seated breath-timing trainer for rifle and pistol shooters (air rifle and air pistol especially), built on the Presage SmartSpectra SDK for the DEV Presage SmartSpectra Challenge. The live chest-breathing trace from the webcam moves the crosshair, and it decides whether each shot was fired in the pause.
